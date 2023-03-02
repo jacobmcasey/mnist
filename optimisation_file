@@ -1,0 +1,129 @@
+# Jacob Casey / MNIST Ensemble 
+# Test accuracy = 0.9958
+
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Conv2D, BatchNormalization, Flatten, Dense, Lambda, MaxPooling2D
+from tensorflow.keras.datasets import mnist
+from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+import numpy as np
+
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+
+input_shape = (28,28,1) 
+
+num_classes = 10
+
+model_1 = Sequential([
+    Lambda(lambda x: (x - 0.5) * 2.0, input_shape=(28, 28, 1)),
+    Conv2D(32, (3, 3), activation='relu', use_bias=False),     # output becomes 26x26
+    BatchNormalization(),
+    Conv2D(48, (3, 3), activation='relu', use_bias=False),     # output becomes 24x24
+    BatchNormalization(),
+    Conv2D(64, (3, 3), activation='relu', use_bias=False),     # output becomes 22x22
+    BatchNormalization(),
+    Conv2D(80, (3, 3), activation='relu', use_bias=False),     # output becomes 20x20
+    BatchNormalization(),
+    Conv2D(96, (3, 3), activation='relu', use_bias=False),     # output becomes 18x18
+    BatchNormalization(),
+    Conv2D(112, (3, 3), activation='relu', use_bias=False),    # output becomes 16x16
+    BatchNormalization(),
+    Conv2D(128, (3, 3), activation='relu', use_bias=False),    # output becomes 14x14
+    BatchNormalization(),
+    Conv2D(144, (3, 3), activation='relu', use_bias=False),    # output becomes 12x12
+    BatchNormalization(),
+    Conv2D(160, (3, 3), activation='relu', use_bias=False),    # output becomes 10x10
+    BatchNormalization(),
+    Conv2D(176, (3, 3), activation='relu', use_bias=False),    # output becomes 8x8
+    BatchNormalization(),
+    Flatten(),
+    Dense(10, activation='softmax', use_bias=False),
+])
+
+model_1.summary()
+
+# Model 2: 5x5 kernels
+model_2 = Sequential([
+        Lambda(lambda x: (x - 0.5) * 2.0),
+        Conv2D(32, 5, padding='same', use_bias=False, input_shape=(28, 28, 1), activation='relu'),
+        BatchNormalization(),
+        Conv2D(64, 5, padding='same', use_bias=False, activation='relu'),
+        BatchNormalization(),
+        Conv2D(96, 5, padding='same', use_bias=False, activation='relu'),
+        BatchNormalization(),
+        Conv2D(128, 5, padding='same', use_bias=False, activation='relu'),
+        BatchNormalization(),
+        Conv2D(160, 5, padding='same', use_bias=False, activation='relu'),
+        BatchNormalization(),
+        Flatten(),
+        Dense(10, activation='softmax', use_bias=False),
+])
+
+# Model 3: 7x7 kernels
+model_3 = Sequential([
+        Lambda(lambda x: (x - 0.5) * 2.0),
+        Conv2D(48, 7, padding='valid', use_bias=False, input_shape=(28, 28, 1), activation='relu'),
+        BatchNormalization(),
+        Conv2D(96, 7, padding='valid', use_bias=False, activation='relu'),
+        BatchNormalization(),
+        Conv2D(144, 7, padding='valid', use_bias=False, activation='relu'),
+        BatchNormalization(),
+        Conv2D(192, 7, padding='valid', use_bias=False, activation='relu'),
+        BatchNormalization(),
+        Flatten(),
+        Dense(10, activation='softmax', use_bias=False),
+])
+
+(x_train, y_train), (x_test, y_test) = mnist.load_data()
+
+# Preprocess the data
+x_train = x_train.reshape(-1, 28, 28, 1) / 255.0
+x_test = x_test.reshape(-1, 28, 28, 1) / 255.0
+y_train = to_categorical(y_train)
+y_test = to_categorical(y_test)
+
+
+# Define the optimizer and loss function for training
+optimizer = 'adam'
+loss = 'categorical_crossentropy'
+
+# Compile the models
+model_1.compile(optimizer=optimizer, loss=loss, metrics=['accuracy'])
+model_2.compile(optimizer=optimizer, loss=loss, metrics=['accuracy'])
+model_3.compile(optimizer=optimizer, loss=loss, metrics=['accuracy'])
+
+# Train the models
+batch_size = 128
+epochs = 10
+
+# Define the data augmentation generator
+datagen = ImageDataGenerator(rotation_range=15, zoom_range=0.2,)
+
+# Fit the models using data augmentation
+batch_size = 128
+epochs = 10
+
+model_1.fit(datagen.flow(x_train, y_train, batch_size=batch_size), 
+            epochs=epochs, validation_data=(x_test, y_test))
+model_2.fit(datagen.flow(x_train, y_train, batch_size=batch_size), 
+            epochs=epochs, validation_data=(x_test, y_test))
+model_3.fit(datagen.flow(x_train, y_train, batch_size=batch_size), 
+            epochs=epochs, validation_data=(x_test, y_test))
+
+# Save models
+model_1.save('model_1.h5')
+model_2.save('model_2.h5')
+model_3.save('model_3.h5')
+
+# Evaluate the models on the test set
+test_preds_1 = model_1.predict(x_test)
+test_preds_2 = model_2.predict(x_test)
+test_preds_3 = model_3.predict(x_test)
+
+# Combine the predictions using majority voting
+test_preds = np.argmax(test_preds_1 + test_preds_2 + test_preds_3, axis=1)
+
+# Evaluate the ensemble model accuracy
+test_accuracy = np.mean(test_preds == np.argmax(y_test, axis=1))
+print('Ensemble model accuracy:', test_accuracy)
